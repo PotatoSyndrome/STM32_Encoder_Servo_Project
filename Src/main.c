@@ -44,7 +44,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
-static const int16_t ENCODER_STEP = 100;
+static const int16_t ENCODER_STEP = 50;
 static const int16_t SERVO_HIGH = 2500;
 static const int16_t SERVO_LOW = 500;
 
@@ -143,7 +143,7 @@ int main(void)
     }
     if (servo_value_changed)
     {
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, servo_value);
+      __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, servo_value);
       servo_value_changed = 0;
 	  }
   }
@@ -220,11 +220,11 @@ static void MX_TIM1_Init(void)
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC1Filter = 10;
-  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Filter = 15;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_FALLING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 10;
+  sConfig.IC2Filter = 15;
   if (HAL_TIM_Encoder_Init(&htim1, &sConfig) != HAL_OK)
   {
     Error_Handler();
