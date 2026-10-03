@@ -44,6 +44,15 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim2;
 
 /* USER CODE BEGIN PV */
+static const int16_t ENCODER_STEP = 100;
+static const int16_t SERVO_HIGH = 2500;
+static const int16_t SERVO_LOW = 500;
+
+static volatile int step_up_flag = 0;
+static volatile int step_down_flag = 0;
+static int servo_value_changed = 0;
+
+static int16_t servo_value = 500;
 
 /* USER CODE END PV */
 
@@ -102,9 +111,13 @@ int main(void)
   /* USER CODE BEGIN 2 */
   /* Start the Encoder Mode on Timer 1, tracking both channels */
   HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+  // Enable capture interrupts on both encoder input channels
+  // Callback doesn't work without it. Requires manual flag reset
+  SET_BIT(TIM1->DIER, TIM_DIER_CC1IE | TIM_DIER_CC2IE);
+
   // Start PWM on TIM2 Channel 1
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
-  volatile int16_t encoder_value = 0;
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, SERVO_LOW);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -114,18 +127,25 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	  // HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-	  // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET);
-    encoder_value = (int16_t)__HAL_TIM_GET_COUNTER(&htim1);
-    int servo_value = 500 + (10 * encoder_value % 2000);
-	  HAL_Delay(100);
+    if (step_up_flag)
+    {
+      servo_value = servo_value + ENCODER_STEP;
+      if (servo_value > SERVO_HIGH) servo_value = SERVO_HIGH;
+      servo_value_changed = 1;
+      step_up_flag = 0;
+    }
+    if (step_down_flag)
+    {
+      servo_value = servo_value - ENCODER_STEP;
+      if (servo_value < SERVO_LOW) servo_value = SERVO_LOW;
+      servo_value_changed = 1;
+      step_down_flag = 0;
+    }
+    if (servo_value_changed)
+    {
     __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, servo_value);
-	  // HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-	  // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_RESET);
-    encoder_value = (int16_t)__HAL_TIM_GET_COUNTER(&htim1);
-    servo_value = 500 + (10 * encoder_value % 2000);
-	  HAL_Delay(100);
-    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, servo_value);
+      servo_value_changed = 0;
+	  }
   }
   /* USER CODE END 3 */
 }
@@ -204,7 +224,7 @@ static void MX_TIM1_Init(void)
   sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-  sConfig.IC2Filter = 0;
+  sConfig.IC2Filter = 10;
   if (HAL_TIM_Encoder_Init(&htim1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -317,7 +337,25 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+  if (htim->Instance == TIM1)
+  {
+    // 1. Flag reset
+    __HAL_TIM_CLEAR_IT(htim, TIM_IT_CC1 | TIM_IT_CC2);
 
+    // 2. (Optional) Read direction: 0 = Up (CW), 1 = Down (CCW)
+    uint8_t direction = __HAL_TIM_IS_TIM_COUNTING_DOWN(&htim1);
+
+    // 3. Set internal flags
+    if (direction) {
+      step_up_flag = 1;
+    }
+    else {
+      step_down_flag = 1;
+    }
+  }
+}
 /* USER CODE END 4 */
 
 /**
